@@ -1,0 +1,327 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoGuide - Navigation Assistant</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            color: white;
+        }
+
+        .container {
+            max-width: 1200px;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 10px;
+            font-size: 2.5rem;
+        }
+
+        .subtitle {
+            text-align: center;
+            opacity: 0.9;
+            margin-bottom: 30px;
+        }
+
+        .video-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 30px;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+        }
+
+        #video-feed {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .narration-box {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 20px;
+            min-height: 100px;
+        }
+
+        .narration-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-bottom: 10px;
+        }
+
+        .narration-text {
+            font-size: 1.3rem;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+
+        .controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        button {
+            background: rgba(255, 255, 255, 0.3);
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: 600;
+        }
+
+        button:hover {
+            background: rgba(255, 255, 255, 0.5);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .settings {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 15px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .settings label {
+            font-weight: 600;
+        }
+
+        input[type="range"] {
+            width: 200px;
+            height: 6px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.3);
+            outline: none;
+        }
+
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 2px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #ffd700;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            opacity: 0.8;
+            margin-top: 5px;
+        }
+
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #4ade80;
+            display: inline-block;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .badge {
+            display: inline-block;
+            background: rgba(255, 215, 0, 0.3);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-left: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        @media (max-width: 768px) {
+            h1 { font-size: 1.8rem; }
+            .narration-text { font-size: 1.1rem; }
+            .controls { flex-direction: column; }
+            button { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎯 EchoGuide <span class="badge">Milestone 1</span></h1>
+        <p class="subtitle">YOLOv8 Object Detection + Text-to-Speech</p>
+
+        <!-- Video Feed -->
+        <div class="video-container">
+            <img id="video-feed" src="{{ url_for('video_feed') }}" alt="Camera Feed">
+        </div>
+
+        <!-- Current Narration -->
+        <div class="narration-box">
+            <div class="narration-label">
+                <span class="status-indicator"></span>Current Narration
+            </div>
+            <div class="narration-text" id="narration-text">
+                Initializing...
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button id="play-audio-btn" onclick="playAudio()">🔊 Play Narration</button>
+            <button onclick="refreshNarration()">🔄 Refresh Now</button>
+        </div>
+
+        <!-- Settings -->
+        <div class="settings">
+            <label for="interval-slider">Narration Interval:</label>
+            <input type="range" id="interval-slider" min="3" max="15" value="5" step="1">
+            <span id="interval-value">5s</span>
+        </div>
+
+        <!-- Statistics -->
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-value" id="detection-count">0</div>
+                <div class="stat-label">Objects Detected</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="narration-count">0</div>
+                <div class="stat-label">Total Narrations</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Audio element (hidden) -->
+    <audio id="audio-player" style="display: none;"></audio>
+
+    <script>
+        let narrationCount = 0;
+        let lastNarration = '';
+
+        // Update narration text periodically
+        function updateNarration() {
+            fetch('/get_narration')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('narration-text').textContent = data.narration;
+                    document.getElementById('detection-count').textContent = data.detection_count;
+                    
+                    if (data.narration !== "Waiting for camera..." && data.narration !== lastNarration) {
+                        lastNarration = data.narration;
+                        narrationCount++;
+                        document.getElementById('narration-count').textContent = narrationCount;
+                        
+                        // Auto-play new narration
+                        setTimeout(() => playAudio(), 500);
+                    }
+                })
+                .catch(error => console.error('Error fetching narration:', error));
+        }
+
+        // Play audio narration
+        function playAudio() {
+            fetch('/get_audio')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.audio_url) {
+                        const audioPlayer = document.getElementById('audio-player');
+                        audioPlayer.src = data.audio_url + '?t=' + new Date().getTime(); // Cache bust
+                        audioPlayer.play();
+                    }
+                })
+                .catch(error => console.error('Error playing audio:', error));
+        }
+
+        // Refresh narration immediately
+        function refreshNarration() {
+            updateNarration();
+        }
+
+        // Handle interval slider
+        const intervalSlider = document.getElementById('interval-slider');
+        const intervalValue = document.getElementById('interval-value');
+
+        intervalSlider.addEventListener('input', function() {
+            intervalValue.textContent = this.value + 's';
+        });
+
+        intervalSlider.addEventListener('change', function() {
+            fetch('/set_interval', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ interval: parseInt(this.value) })
+            });
+        });
+
+        // Update narration every 2 seconds
+        setInterval(updateNarration, 2000);
+
+        // Initial update
+        updateNarration();
+    </script>
+</body>
+</html>
+```
+
+---
+
+## **Project Structure**
+
+Make sure your files are organized like this:
+```
+EchoGuide/
+├── app.py                    # Flask backend (simplified)
+├── spatial_utils.py          # Your existing file
+├── navigation_classes.py     # Your existing file
+├── yolov8n.pt               # YOLO model
+├── templates/
+│   └── index.html           # Frontend
+└── static/
+    └── (audio files saved here automatically)
