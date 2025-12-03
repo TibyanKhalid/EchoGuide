@@ -1,5 +1,5 @@
 # app.py
-
+import os
 from flask import Flask, render_template, Response, jsonify, request
 from flask_cors import CORS
 import cv2
@@ -12,7 +12,7 @@ from yolo_detection.spatial_utils import get_position_description, sort_by_impor
 from yolo_detection.navigation_classes import NAVIGATION_CLASSES, PRIORITY_MAP
 from gtts import gTTS
 import tempfile
-import os
+from yolo_detection.llm_narrator import LLMNarrator
 
 app = Flask(__name__, template_folder='mobile_app/frontend/templates')
 CORS(app)
@@ -37,6 +37,11 @@ class WebNavigationAssistant:
         # Camera
         self.camera = cv2.VideoCapture(0)
         self.camera_lock = threading.Lock()
+
+        # LLM Narrator
+        print("[Init] Loading LLM for smart narration...")
+        self.llm_narrator = LLMNarrator()
+        self.use_llm = True  # Toggle to enable/disable
         
         print("[Init] Ready!")
 
@@ -71,101 +76,23 @@ class WebNavigationAssistant:
         return detections
     
     def generate_narration(self, detections):
-        """Generate smart, natural narration for navigation"""
+        """Generate narration with LLM or fallback"""
         if not detections:
-            return "Path is clear"
+            return "Path is clear. Continue forward."
         
-        # Categorize by type
-        people = [d for d in detections if d['class'] == 'person']
-        vehicles = [d for d in detections if d['class'] in ['car', 'bus', 'truck', 'motorcycle', 'bicycle']]
-        obstacles = [d for d in detections if d['class'] in ['chair', 'couch', 'dining table', 'bench', 'potted plant', 'suitcase', 'backpack']]
-        landmarks = [d for d in detections if d['class'] in ['traffic light', 'stop sign', 'fire hydrant', 'clock']]
-        
-        narration_parts = []
-        
-        # 1. CRITICAL ALERTS - Objects very close ahead
-        critical = [d for d in detections if d['position']['urgency'] == 'immediate' and 'ahead' in d['position']['horizontal']]
-        if critical:
-            obj = critical[0]
-            narration_parts.append(f"Stop! {obj['class']} directly in front of you")
-            return ". ".join(narration_parts)  # Return immediately for safety
-        
-        # 2. OBSTACLES - Most important for navigation
-        if obstacles:
-            sorted_obs = sort_by_importance(obstacles, PRIORITY_MAP)
-            
-            # Closest obstacle
-            closest = sorted_obs[0]
-            urgency = closest['position']['urgency']
-            
-            if urgency == 'immediate':
-                narration_parts.append(f"{closest['class']} very close {closest['position']['horizontal']}")
-            elif urgency == 'caution':
-                narration_parts.append(f"{closest['class']} nearby {closest['position']['horizontal']}")
-            else:
-                narration_parts.append(f"{closest['class']} {closest['position']['horizontal']}")
-            
-            # Second obstacle if in different direction
-            if len(sorted_obs) > 1:
-                second = sorted_obs[1]
-                first_dir = closest['position']['horizontal']
-                second_dir = second['position']['horizontal']
-                
-                # Only mention if different side
-                if ('left' in first_dir and 'right' in second_dir) or \
-                   ('right' in first_dir and 'left' in second_dir):
-                    narration_parts.append(f"{second['class']} {second_dir}")
-        
-        # 3. VEHICLES - Safety priority
-        if vehicles:
-            closest_vehicle = vehicles[0]
-            if closest_vehicle['position']['urgency'] in ['immediate', 'caution']:
-                narration_parts.append(f"Warning: {closest_vehicle['class']} approaching {closest_vehicle['position']['horizontal']}")
-        
-        # 4. PEOPLE - Summarize, don't list
-        if people:
-            count = len(people)
-            
-            # Check for people very close
-            very_close = [p for p in people if p['position']['urgency'] == 'immediate']
-            if very_close:
-                narration_parts.append(f"Person very close {very_close[0]['position']['horizontal']}")
-            elif count == 1:
-                person = people[0]
-                narration_parts.append(f"One person {person['position']['horizontal']}")
-            elif count <= 3:
-                # Group by direction
-                left_count = sum(1 for p in people if 'left' in p['position']['horizontal'])
-                right_count = sum(1 for p in people if 'right' in p['position']['horizontal'])
-                ahead_count = sum(1 for p in people if 'ahead' in p['position']['horizontal'])
-                
-                summary = []
-                if ahead_count > 0:
-                    summary.append(f"{ahead_count} ahead")
-                if left_count > 0:
-                    summary.append(f"{left_count} on left")
-                if right_count > 0:
-                    summary.append(f"{right_count} on right")
-                
-                if summary:
-                    narration_parts.append(f"{count} people: {', '.join(summary)}")
-            else:
-                narration_parts.append(f"Crowded area with {count} people")
-        
-        # 5. LANDMARKS - For orientation
-        if landmarks and not narration_parts:
-            landmark = landmarks[0]
-            narration_parts.append(f"{landmark['class']} {landmark['position']['horizontal']}")
-        
-        # Final output
-        if not narration_parts:
-            return "Multiple objects detected"
-        
-        # Join naturally
-        if len(narration_parts) == 1:
-            return narration_parts[0]
+        # Use LLM if enabled
+        if self.use_llm:
+            try:
+                print("[LLM] Generating instruction...")
+                instruction = self.llm_narrator.generate_navigation_instruction(detections)
+                print(f"[LLM] Generated: {instruction}")
+                return instruction
+            except Exception as e:
+                print(f"[LLM ERROR]: {e}")
+                # Fall back to simple narration
+                return self._generate_simple_narration(detections)
         else:
-            return ". ".join(narration_parts)
+            return self._generate_simple_narration(detections)
     
     def generate_audio(self, text):
         """Generate smooth audio with unique filenames"""
