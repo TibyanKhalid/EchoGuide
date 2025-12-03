@@ -239,12 +239,10 @@
                 .then(response => response.json())
                 .then(data => {
                     document.getElementById('narration-text').textContent = data.narration;
-                    document.getElementById('detection-count').textContent = data.detection_count;
                     
                     if (data.narration !== "Waiting for camera..." && data.narration !== lastNarration) {
                         lastNarration = data.narration;
                         narrationCount++;
-                        document.getElementById('narration-count').textContent = narrationCount;
                         
                         // Auto-play new narration
                         setTimeout(() => playAudio(), 500);
@@ -263,7 +261,9 @@
                     if (data.audio_url) {
                         const audioPlayer = document.getElementById('audio-player');
                         audioPlayer.src = data.audio_url + '?t=' + new Date().getTime(); // Cache bust
-                        audioPlayer.play();
+                        audioPlayer.play().catch(error => {
+                            console.error('Audio play failed:', error);
+                        });
                     }
                 })
                 .catch(error => console.error('Error playing audio:', error));
