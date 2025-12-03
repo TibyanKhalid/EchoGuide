@@ -299,7 +299,6 @@ if __name__ == '__main__':
     print("="*50)
     print("Open your browser and go to:")
     print("   http://localhost:5000")
-    print("\n Features:")
     print("="*50 + "\n")
     
     try:
