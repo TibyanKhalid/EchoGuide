@@ -14,7 +14,7 @@ from gtts import gTTS
 import tempfile
 import os
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='mobile_app/frontend/templates')
 CORS(app)
 
 class WebNavigationAssistant:
@@ -64,27 +64,82 @@ class WebNavigationAssistant:
         return detections
     
     def generate_narration(self, detections):
-        """Generate simple narration (Milestone 1 style)"""
+        """Generate smart narration for navigation"""
         if not detections:
-            return "No obstacles detected"
+            return "Path appears clear"
         
-        # Sort by importance
-        sorted_dets = sort_by_importance(detections, PRIORITY_MAP)
+        # Categorize detections
+        people = [d for d in detections if d['class'] == 'person']
+        vehicles = [d for d in detections if d['class'] in ['car', 'bus', 'truck', 'motorcycle', 'bicycle']]
+        obstacles = [d for d in detections if d['class'] in ['chair', 'couch', 'table', 'dining table', 'bench', 'potted plant']]
+        other = [d for d in detections if d not in people + vehicles + obstacles]
         
-        # Take top 3 most important objects
-        top_detections = sorted_dets[:3]
+        narration_parts = []
         
-        descriptions = []
-        for det in top_detections:
-            desc = f"{det['class']} {det['position']}"
-            descriptions.append(desc)
+        # 1. IMMEDIATE DANGERS (people/vehicles very close ahead)
+        immediate_people = [p for p in people if 'very close' in p['position'] and 'ahead' in p['position']]
+        if immediate_people:
+            narration_parts.append("Person directly ahead, stop")
         
-        if len(descriptions) == 1:
-            return descriptions[0]
-        elif len(descriptions) == 2:
-            return f"{descriptions[0]}, and {descriptions[1]}"
-        else:
-            return f"{descriptions[0]}, {descriptions[1]}, and {descriptions[2]}"
+        immediate_vehicles = [v for v in vehicles if 'very close' in v['position'] or 'nearby' in v['position']]
+        if immediate_vehicles:
+            vehicle_type = immediate_vehicles[0]['class']
+            position = immediate_vehicles[0]['position']
+            narration_parts.append(f"Warning: {vehicle_type} {position}")
+        
+        # 2. OBSTACLES (most important for navigation)
+        if obstacles:
+            sorted_obstacles = sort_by_importance(obstacles, PRIORITY_MAP)
+            closest_obstacle = sorted_obstacles[0]
+            narration_parts.append(f"{closest_obstacle['class']} {closest_obstacle['position']}")
+            
+            # Mention second obstacle if it's in a different direction
+            if len(sorted_obstacles) > 1:
+                second = sorted_obstacles[1]
+                first_pos = closest_obstacle['position']
+                second_pos = second['position']
+                
+                # Only mention if in different direction
+                if ('left' in first_pos and 'right' in second_pos) or \
+                ('right' in first_pos and 'left' in second_pos) or \
+                ('ahead' in first_pos and ('left' in second_pos or 'right' in second_pos)):
+                    narration_parts.append(f"{second['class']} {second['position']}")
+        
+        # 3. PEOPLE SUMMARY (only if not immediate danger)
+        if people and not immediate_people:
+            # Count people by position
+            people_left = sum(1 for p in people if 'left' in p['position'])
+            people_right = sum(1 for p in people if 'right' in p['position'])
+            people_ahead = sum(1 for p in people if 'ahead' in p['position'] and 'very close' not in p['position'])
+            
+            people_summary = []
+            if people_ahead > 0:
+                if people_ahead == 1:
+                    people_summary.append("one person ahead")
+                else:
+                    people_summary.append(f"{people_ahead} people ahead")
+            
+            if people_left > 0:
+                people_summary.append(f"{people_left} on left")
+            
+            if people_right > 0:
+                people_summary.append(f"{people_right} on right")
+            
+            if people_summary:
+                narration_parts.append(", ".join(people_summary))
+        
+        # 4. OTHER IMPORTANT OBJECTS (traffic lights, stop signs, etc.)
+        priority_other = [o for o in other if o['class'] in ['traffic light', 'stop sign', 'fire hydrant']]
+        if priority_other:
+            obj = priority_other[0]
+            narration_parts.append(f"{obj['class']} {obj['position']}")
+        
+        # Combine narration
+        if not narration_parts:
+            return "Area crowded with people"
+        
+        return ". ".join(narration_parts)
+    
     
     def generate_audio(self, text):
         """Generate audio file from text using gTTS"""
