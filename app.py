@@ -295,15 +295,11 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     
     print("\n" + "="*50)
-    print("🎯 EchoGuide - Blind Navigation Assistant")
+    print("EchoGuide: AI-Powered Audio Guide for the Visually Impaired")
     print("="*50)
-    print("📱 Open your browser and go to:")
+    print("Open your browser and go to:")
     print("   http://localhost:5000")
     print("\n Features:")
-    print("   ✓ YOLOv8 Object Detection")
-    print("   ✓ Smart Context-Aware Narration")
-    print("   ✓ Text-to-Speech Audio")
-    print("   ✓ Real-time Video Feed")
     print("="*50 + "\n")
     
     try:
