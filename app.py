@@ -10,7 +10,6 @@ import time
 from ultralytics import YOLO
 from yolo_detection.spatial_utils import get_position_description, sort_by_importance
 from yolo_detection.navigation_classes import NAVIGATION_CLASSES, PRIORITY_MAP
-from yolo_detection.scene_narrator import SceneNarrator
 from gtts import gTTS
 import tempfile
 import os
@@ -31,22 +30,15 @@ class WebNavigationAssistant:
         self.current_detections = []
         self.current_narration = "Waiting for camera..."
         
-        # AUDIO STATE FIXES
+        # AUDIO STATE
         self.last_spoken_narration = None
         self.last_audio_path = None
         
         # Camera
         self.camera = cv2.VideoCapture(0)
         self.camera_lock = threading.Lock()
-
-        self.narrator = SceneNarrator()
-        self.previous_detections = []
         
         print("[Init] Ready!")
-        
-    def generate_narration(self, detections):
-        """Generate intelligent scene narration"""
-        return self.narrator.generate_scene_description(detections)
 
     def process_frame(self, frame):
         """Process frame with YOLO"""
@@ -79,68 +71,101 @@ class WebNavigationAssistant:
         return detections
     
     def generate_narration(self, detections):
-        """Generate smart narration for navigation"""
+        """Generate smart, natural narration for navigation"""
         if not detections:
-            return "Path appears clear"
+            return "Path is clear"
         
+        # Categorize by type
         people = [d for d in detections if d['class'] == 'person']
         vehicles = [d for d in detections if d['class'] in ['car', 'bus', 'truck', 'motorcycle', 'bicycle']]
-        obstacles = [d for d in detections if d['class'] in ['chair', 'couch', 'table', 'dining table', 'bench', 'potted plant']]
-        other = [d for d in detections if d not in people + vehicles + obstacles]
+        obstacles = [d for d in detections if d['class'] in ['chair', 'couch', 'dining table', 'bench', 'potted plant', 'suitcase', 'backpack']]
+        landmarks = [d for d in detections if d['class'] in ['traffic light', 'stop sign', 'fire hydrant', 'clock']]
         
         narration_parts = []
         
-        # 1. Immediate danger
-        immediate_people = [p for p in people if 'very close' in p['position']['description'] and 'ahead' in p['position']['description']]
-        if immediate_people:
-            narration_parts.append("Person directly ahead, stop")
+        # 1. CRITICAL ALERTS - Objects very close ahead
+        critical = [d for d in detections if d['position']['urgency'] == 'immediate' and 'ahead' in d['position']['horizontal']]
+        if critical:
+            obj = critical[0]
+            narration_parts.append(f"Stop! {obj['class']} directly in front of you")
+            return ". ".join(narration_parts)  # Return immediately for safety
         
-        immediate_vehicles = [v for v in vehicles if 'very close' in v['position']['description'] or 'nearby' in v['position']['description']]
-        if immediate_vehicles:
-            vehicle_type = immediate_vehicles[0]['class']
-            position = immediate_vehicles[0]['position']['description']
-            narration_parts.append(f"Warning: {vehicle_type} {position}")
-        
-        # 2. Obstacles
+        # 2. OBSTACLES - Most important for navigation
         if obstacles:
-            sorted_obstacles = sort_by_importance(obstacles, PRIORITY_MAP)
-            closest_obstacle = sorted_obstacles[0]
-            narration_parts.append(f"{closest_obstacle['class']} {closest_obstacle['position']['description']}")
+            sorted_obs = sort_by_importance(obstacles, PRIORITY_MAP)
             
-            if len(sorted_obstacles) > 1:
-                second = sorted_obstacles[1]
-                if ('left' in closest_obstacle['position']['description'] and 'right' in second['position']['description']) or \
-                ('right' in closest_obstacle['position']['description'] and 'left' in second['position']['description']) or \
-                ('ahead' in closest_obstacle['position']['description'] and ('left' in second['position']['description'] or 'right' in second['position']['description'])):
-                    narration_parts.append(f"{second['class']} {second['position']['description']}")
-        
-        # 3. People summary
-        if people and not immediate_people:
-            people_left = sum(1 for p in people if 'left' in p['position']['description'])
-            people_right = sum(1 for p in people if 'right' in p['position']['description'])
-            people_ahead = sum(1 for p in people if 'ahead' in p['position']['description'] and 'very close' not in p['position']['description'])
+            # Closest obstacle
+            closest = sorted_obs[0]
+            urgency = closest['position']['urgency']
             
-            people_summary = []
-            if people_ahead > 0:
-                people_summary.append(f"{people_ahead} ahead")
-            if people_left > 0:
-                people_summary.append(f"{people_left} left")
-            if people_right > 0:
-                people_summary.append(f"{people_right} right")
+            if urgency == 'immediate':
+                narration_parts.append(f"{closest['class']} very close {closest['position']['horizontal']}")
+            elif urgency == 'caution':
+                narration_parts.append(f"{closest['class']} nearby {closest['position']['horizontal']}")
+            else:
+                narration_parts.append(f"{closest['class']} {closest['position']['horizontal']}")
             
-            if people_summary:
-                narration_parts.append(", ".join(people_summary))
+            # Second obstacle if in different direction
+            if len(sorted_obs) > 1:
+                second = sorted_obs[1]
+                first_dir = closest['position']['horizontal']
+                second_dir = second['position']['horizontal']
+                
+                # Only mention if different side
+                if ('left' in first_dir and 'right' in second_dir) or \
+                   ('right' in first_dir and 'left' in second_dir):
+                    narration_parts.append(f"{second['class']} {second_dir}")
         
-        priority_other = [o for o in other if o['class'] in ['traffic light', 'stop sign', 'fire hydrant']]
-        if priority_other:
-            obj = priority_other[0]
-            narration_parts.append(f"{obj['class']} {obj['position']['description']}")
+        # 3. VEHICLES - Safety priority
+        if vehicles:
+            closest_vehicle = vehicles[0]
+            if closest_vehicle['position']['urgency'] in ['immediate', 'caution']:
+                narration_parts.append(f"Warning: {closest_vehicle['class']} approaching {closest_vehicle['position']['horizontal']}")
         
+        # 4. PEOPLE - Summarize, don't list
+        if people:
+            count = len(people)
+            
+            # Check for people very close
+            very_close = [p for p in people if p['position']['urgency'] == 'immediate']
+            if very_close:
+                narration_parts.append(f"Person very close {very_close[0]['position']['horizontal']}")
+            elif count == 1:
+                person = people[0]
+                narration_parts.append(f"One person {person['position']['horizontal']}")
+            elif count <= 3:
+                # Group by direction
+                left_count = sum(1 for p in people if 'left' in p['position']['horizontal'])
+                right_count = sum(1 for p in people if 'right' in p['position']['horizontal'])
+                ahead_count = sum(1 for p in people if 'ahead' in p['position']['horizontal'])
+                
+                summary = []
+                if ahead_count > 0:
+                    summary.append(f"{ahead_count} ahead")
+                if left_count > 0:
+                    summary.append(f"{left_count} on left")
+                if right_count > 0:
+                    summary.append(f"{right_count} on right")
+                
+                if summary:
+                    narration_parts.append(f"{count} people: {', '.join(summary)}")
+            else:
+                narration_parts.append(f"Crowded area with {count} people")
+        
+        # 5. LANDMARKS - For orientation
+        if landmarks and not narration_parts:
+            landmark = landmarks[0]
+            narration_parts.append(f"{landmark['class']} {landmark['position']['horizontal']}")
+        
+        # Final output
         if not narration_parts:
-            return "Area crowded with people"
+            return "Multiple objects detected"
         
-        return ". ".join(narration_parts)
-    
+        # Join naturally
+        if len(narration_parts) == 1:
+            return narration_parts[0]
+        else:
+            return ". ".join(narration_parts)
     
     def generate_audio(self, text):
         """Generate smooth audio with unique filenames"""
@@ -197,9 +222,8 @@ class WebNavigationAssistant:
                     self.last_spoken_narration = new_narration
                     self.current_narration = new_narration
 
-                    # Generate audio in background thread to avoid blocking video
+                    # Generate audio in background thread
                     threading.Thread(target=self.generate_audio, args=(new_narration,), daemon=True).start()
-
             
             self.current_frame = frame
             return frame
@@ -243,7 +267,7 @@ def get_narration():
         'detections': [
             {
                 'class': d['class'],
-                'position': d['position'],
+                'position': d['position']['description'],  # Extract description string
                 'confidence': round(d['confidence'], 2)
             }
             for d in assistant.current_detections
@@ -271,13 +295,14 @@ if __name__ == '__main__':
     os.makedirs('static', exist_ok=True)
     
     print("\n" + "="*50)
-    print("EchoGuide Blind Navigation Assistant")
+    print("🎯 EchoGuide - Blind Navigation Assistant")
     print("="*50)
     print("📱 Open your browser and go to:")
     print("   http://localhost:5000")
     print("\n Features:")
     print("   ✓ YOLOv8 Object Detection")
-    print("   ✓ Text-to-Speech Narration (Smooth)")
+    print("   ✓ Smart Context-Aware Narration")
+    print("   ✓ Text-to-Speech Audio")
     print("   ✓ Real-time Video Feed")
     print("="*50 + "\n")
     
