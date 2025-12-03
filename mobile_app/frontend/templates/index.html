@@ -211,8 +211,7 @@
 
         <!-- Controls -->
         <div class="controls">
-            <button id="play-audio-btn" onclick="playAudio()">🔊 Play Narration</button>
-            <button onclick="refreshNarration()">🔄 Refresh Now</button>
+            <button id="start-stop-btn" onclick="toggleNarration()">▶️ Start</button>
         </div>
 
         <!-- Settings -->
@@ -220,18 +219,6 @@
             <label for="interval-slider">Narration Interval:</label>
             <input type="range" id="interval-slider" min="3" max="15" value="5" step="1">
             <span id="interval-value">5s</span>
-        </div>
-
-        <!-- Statistics -->
-        <div class="stats">
-            <div class="stat-item">
-                <div class="stat-value" id="detection-count">0</div>
-                <div class="stat-label">Objects Detected</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value" id="narration-count">0</div>
-                <div class="stat-label">Total Narrations</div>
-            </div>
         </div>
     </div>
 
@@ -241,9 +228,13 @@
     <script>
         let narrationCount = 0;
         let lastNarration = '';
+        let isRunning = false;
+        let updateInterval = null;
 
         // Update narration text periodically
         function updateNarration() {
+            if (!isRunning) return;
+            
             fetch('/get_narration')
                 .then(response => response.json())
                 .then(data => {
@@ -264,6 +255,8 @@
 
         // Play audio narration
         function playAudio() {
+            if (!isRunning) return;
+            
             fetch('/get_audio')
                 .then(response => response.json())
                 .then(data => {
@@ -276,9 +269,34 @@
                 .catch(error => console.error('Error playing audio:', error));
         }
 
-        // Refresh narration immediately
-        function refreshNarration() {
-            updateNarration();
+        // Toggle narration on/off
+        function toggleNarration() {
+            const btn = document.getElementById('start-stop-btn');
+            
+            if (isRunning) {
+                // Stop
+                isRunning = false;
+                if (updateInterval) {
+                    clearInterval(updateInterval);
+                    updateInterval = null;
+                }
+                btn.textContent = '▶️ Start';
+                document.getElementById('narration-text').textContent = 'Stopped';
+                
+                // Stop audio
+                const audioPlayer = document.getElementById('audio-player');
+                audioPlayer.pause();
+                audioPlayer.currentTime = 0;
+            } else {
+                // Start
+                isRunning = true;
+                btn.textContent = '⏹️ Stop';
+                document.getElementById('narration-text').textContent = 'Starting...';
+                
+                // Start updating immediately
+                updateNarration();
+                updateInterval = setInterval(updateNarration, 2000);
+            }
         }
 
         // Handle interval slider
@@ -299,11 +317,8 @@
             });
         });
 
-        // Update narration every 2 seconds
-        setInterval(updateNarration, 2000);
-
-        // Initial update
-        updateNarration();
+        // Narration controlled by Start/Stop button
+        // User must click Start to begin
     </script>
 </body>
 </html>
