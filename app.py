@@ -179,7 +179,8 @@ class WebNavigationAssistant:
                 self.last_narration_time = current_time
                 self.current_narration = self.generate_narration(self.current_detections)
                 print(f"[NARRATION]: {self.current_narration}")
-                self.generate_audio(self.current_narration)
+                # Generate audio in background thread to avoid blocking video
+                threading.Thread(target=self.generate_audio, args=(self.current_narration,), daemon=True).start()
             
             self.current_frame = frame
             return frame
