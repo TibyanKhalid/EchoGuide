@@ -71,14 +71,20 @@ def sort_by_importance(detections, priority_map):
         class_name = det['class']
         priority = priority_map.get(class_name, 5)
         
-        # Urgency from position
+        # Urgency from position (now a dict)
         urgency_score = {
             'immediate': 0,
             'caution': 1,
             'aware': 2,
             'info': 3
         }
-        urgency = urgency_score.get(det['position']['urgency'], 3)
+        
+        # Access the urgency from the position dict
+        position_info = det['position']
+        if isinstance(position_info, dict):
+            urgency = urgency_score.get(position_info.get('urgency', 'info'), 3)
+        else:
+            urgency = 3  # Fallback
         
         size = det['size']
         

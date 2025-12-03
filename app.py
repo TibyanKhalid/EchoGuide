@@ -40,6 +40,7 @@ class WebNavigationAssistant:
         self.camera_lock = threading.Lock()
 
         self.narrator = SceneNarrator()
+        self.previous_detections = []
         
         print("[Init] Ready!")
         
@@ -90,34 +91,34 @@ class WebNavigationAssistant:
         narration_parts = []
         
         # 1. Immediate danger
-        immediate_people = [p for p in people if 'very close' in p['position'] and 'ahead' in p['position']]
+        immediate_people = [p for p in people if 'very close' in p['position']['description'] and 'ahead' in p['position']['description']]
         if immediate_people:
             narration_parts.append("Person directly ahead, stop")
         
-        immediate_vehicles = [v for v in vehicles if 'very close' in v['position'] or 'nearby' in v['position']]
+        immediate_vehicles = [v for v in vehicles if 'very close' in v['position']['description'] or 'nearby' in v['position']['description']]
         if immediate_vehicles:
             vehicle_type = immediate_vehicles[0]['class']
-            position = immediate_vehicles[0]['position']
+            position = immediate_vehicles[0]['position']['description']
             narration_parts.append(f"Warning: {vehicle_type} {position}")
         
         # 2. Obstacles
         if obstacles:
             sorted_obstacles = sort_by_importance(obstacles, PRIORITY_MAP)
             closest_obstacle = sorted_obstacles[0]
-            narration_parts.append(f"{closest_obstacle['class']} {closest_obstacle['position']}")
+            narration_parts.append(f"{closest_obstacle['class']} {closest_obstacle['position']['description']}")
             
             if len(sorted_obstacles) > 1:
                 second = sorted_obstacles[1]
-                if ('left' in closest_obstacle['position'] and 'right' in second['position']) or \
-                ('right' in closest_obstacle['position'] and 'left' in second['position']) or \
-                ('ahead' in closest_obstacle['position'] and ('left' in second['position'] or 'right' in second['position'])):
-                    narration_parts.append(f"{second['class']} {second['position']}")
+                if ('left' in closest_obstacle['position']['description'] and 'right' in second['position']['description']) or \
+                ('right' in closest_obstacle['position']['description'] and 'left' in second['position']['description']) or \
+                ('ahead' in closest_obstacle['position']['description'] and ('left' in second['position']['description'] or 'right' in second['position']['description'])):
+                    narration_parts.append(f"{second['class']} {second['position']['description']}")
         
         # 3. People summary
         if people and not immediate_people:
-            people_left = sum(1 for p in people if 'left' in p['position'])
-            people_right = sum(1 for p in people if 'right' in p['position'])
-            people_ahead = sum(1 for p in people if 'ahead' in p['position'] and 'very close' not in p['position'])
+            people_left = sum(1 for p in people if 'left' in p['position']['description'])
+            people_right = sum(1 for p in people if 'right' in p['position']['description'])
+            people_ahead = sum(1 for p in people if 'ahead' in p['position']['description'] and 'very close' not in p['position']['description'])
             
             people_summary = []
             if people_ahead > 0:
@@ -133,7 +134,7 @@ class WebNavigationAssistant:
         priority_other = [o for o in other if o['class'] in ['traffic light', 'stop sign', 'fire hydrant']]
         if priority_other:
             obj = priority_other[0]
-            narration_parts.append(f"{obj['class']} {obj['position']}")
+            narration_parts.append(f"{obj['class']} {obj['position']['description']}")
         
         if not narration_parts:
             return "Area crowded with people"
@@ -194,14 +195,10 @@ class WebNavigationAssistant:
                 # Only generate audio if narration changed
                 if new_narration != self.last_spoken_narration:
                     self.last_spoken_narration = new_narration
+                    self.current_narration = new_narration
 
-                    # Generate audio synchronously (not thread) to ensure sync
-                    audio_path = self.generate_audio(new_narration)
-
-                    # Now update displayed narration ONLY AFTER audio is ready
-                    if audio_path:
-                        self.current_narration = new_narration
-                        self.last_audio_path = audio_path
+                    # Generate audio in background thread to avoid blocking video
+                    threading.Thread(target=self.generate_audio, args=(new_narration,), daemon=True).start()
 
             
             self.current_frame = frame
