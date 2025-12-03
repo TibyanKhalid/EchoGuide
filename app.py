@@ -30,6 +30,10 @@ class WebNavigationAssistant:
         self.current_detections = []
         self.current_narration = "Waiting for camera..."
         
+        # AUDIO STATE FIXES
+        self.last_spoken_narration = None
+        self.last_audio_path = None
+        
         # Camera
         self.camera = cv2.VideoCapture(0)
         self.camera_lock = threading.Lock()
@@ -68,7 +72,6 @@ class WebNavigationAssistant:
         if not detections:
             return "Path appears clear"
         
-        # Categorize detections
         people = [d for d in detections if d['class'] == 'person']
         vehicles = [d for d in detections if d['class'] in ['car', 'bus', 'truck', 'motorcycle', 'bicycle']]
         obstacles = [d for d in detections if d['class'] in ['chair', 'couch', 'table', 'dining table', 'bench', 'potted plant']]
@@ -76,7 +79,7 @@ class WebNavigationAssistant:
         
         narration_parts = []
         
-        # 1. IMMEDIATE DANGERS (people/vehicles very close ahead)
+        # 1. Immediate danger
         immediate_people = [p for p in people if 'very close' in p['position'] and 'ahead' in p['position']]
         if immediate_people:
             narration_parts.append("Person directly ahead, stop")
@@ -87,54 +90,41 @@ class WebNavigationAssistant:
             position = immediate_vehicles[0]['position']
             narration_parts.append(f"Warning: {vehicle_type} {position}")
         
-        # 2. OBSTACLES (most important for navigation)
+        # 2. Obstacles
         if obstacles:
             sorted_obstacles = sort_by_importance(obstacles, PRIORITY_MAP)
             closest_obstacle = sorted_obstacles[0]
             narration_parts.append(f"{closest_obstacle['class']} {closest_obstacle['position']}")
             
-            # Mention second obstacle if it's in a different direction
             if len(sorted_obstacles) > 1:
                 second = sorted_obstacles[1]
-                first_pos = closest_obstacle['position']
-                second_pos = second['position']
-                
-                # Only mention if in different direction
-                if ('left' in first_pos and 'right' in second_pos) or \
-                ('right' in first_pos and 'left' in second_pos) or \
-                ('ahead' in first_pos and ('left' in second_pos or 'right' in second_pos)):
+                if ('left' in closest_obstacle['position'] and 'right' in second['position']) or \
+                ('right' in closest_obstacle['position'] and 'left' in second['position']) or \
+                ('ahead' in closest_obstacle['position'] and ('left' in second['position'] or 'right' in second['position'])):
                     narration_parts.append(f"{second['class']} {second['position']}")
         
-        # 3. PEOPLE SUMMARY (only if not immediate danger)
+        # 3. People summary
         if people and not immediate_people:
-            # Count people by position
             people_left = sum(1 for p in people if 'left' in p['position'])
             people_right = sum(1 for p in people if 'right' in p['position'])
             people_ahead = sum(1 for p in people if 'ahead' in p['position'] and 'very close' not in p['position'])
             
             people_summary = []
             if people_ahead > 0:
-                if people_ahead == 1:
-                    people_summary.append("one person ahead")
-                else:
-                    people_summary.append(f"{people_ahead} people ahead")
-            
+                people_summary.append(f"{people_ahead} ahead")
             if people_left > 0:
-                people_summary.append(f"{people_left} on left")
-            
+                people_summary.append(f"{people_left} left")
             if people_right > 0:
-                people_summary.append(f"{people_right} on right")
+                people_summary.append(f"{people_right} right")
             
             if people_summary:
                 narration_parts.append(", ".join(people_summary))
         
-        # 4. OTHER IMPORTANT OBJECTS (traffic lights, stop signs, etc.)
         priority_other = [o for o in other if o['class'] in ['traffic light', 'stop sign', 'fire hydrant']]
         if priority_other:
             obj = priority_other[0]
             narration_parts.append(f"{obj['class']} {obj['position']}")
         
-        # Combine narration
         if not narration_parts:
             return "Area crowded with people"
         
@@ -142,15 +132,26 @@ class WebNavigationAssistant:
     
     
     def generate_audio(self, text):
-        """Generate audio file from text using gTTS"""
+        """Generate smooth audio with unique filenames"""
         try:
+            timestamp = int(time.time() * 1000)
+            audio_path = f"static/narration_{timestamp}.mp3"
+
             tts = gTTS(text=text, lang='en', slow=False)
-            
-            # Save to static folder
-            audio_path = os.path.join('static', 'current_narration.mp3')
             tts.save(audio_path)
-            
+
+            self.last_audio_path = audio_path
+
+            # Remove old audio files
+            for f in os.listdir("static"):
+                if f.startswith("narration_") and f != os.path.basename(audio_path):
+                    try:
+                        os.remove(os.path.join("static", f))
+                    except:
+                        pass
+
             return audio_path
+
         except Exception as e:
             print(f"[ERROR] Audio generation failed: {e}")
             return None
@@ -173,59 +174,60 @@ class WebNavigationAssistant:
                 cv2.putText(frame, label, (x1, y1-10), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
             
-            # Check if should generate new narration
+            # Narration timing
             current_time = time.time()
             if current_time - self.last_narration_time >= self.narration_interval:
                 self.last_narration_time = current_time
-                self.current_narration = self.generate_narration(self.current_detections)
-                print(f"[NARRATION]: {self.current_narration}")
-                # Generate audio in background thread to avoid blocking video
-                threading.Thread(target=self.generate_audio, args=(self.current_narration,), daemon=True).start()
+                new_narration = self.generate_narration(self.current_detections)
+                print(f"[NARRATION]: {new_narration}")
+                
+                self.current_narration = new_narration
+                
+                # Only generate audio if narration changed
+                if self.current_narration != self.last_spoken_narration:
+                    self.last_spoken_narration = self.current_narration
+                    threading.Thread(
+                        target=self.generate_audio, 
+                        args=(self.current_narration,),
+                        daemon=True
+                    ).start()
             
             self.current_frame = frame
             return frame
     
     def release(self):
-        """Release camera"""
         self.camera.release()
 
 
-# Global assistant instance
 assistant = WebNavigationAssistant()
 
 
 @app.route('/')
 def index():
-    """Serve the main page"""
     return render_template('index.html')
 
 
 def generate_frames():
-    """Video streaming generator"""
     while True:
         frame = assistant.get_frame()
         if frame is None:
             continue
         
-        # Encode frame as JPEG
         ret, buffer = cv2.imencode('.jpg', frame)
         frame_bytes = buffer.tobytes()
         
-        # Yield frame in multipart format
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
 
 @app.route('/video_feed')
 def video_feed():
-    """Video streaming route"""
     return Response(generate_frames(),
                     mimetype='multipart/x-mixed-replace; boundary=frame')
 
 
 @app.route('/get_narration')
 def get_narration():
-    """Get current narration text"""
     return jsonify({
         'narration': assistant.current_narration,
         'detection_count': len(assistant.current_detections),
@@ -242,25 +244,21 @@ def get_narration():
 
 @app.route('/get_audio')
 def get_audio():
-    """Get current audio file"""
-    audio_path = 'static/current_narration.mp3'
-    if os.path.exists(audio_path):
-        return jsonify({'audio_url': '/' + audio_path})
+    if assistant.last_audio_path and os.path.exists(assistant.last_audio_path):
+        return jsonify({'audio_url': '/' + assistant.last_audio_path})
     return jsonify({'audio_url': None})
 
 
 @app.route('/set_interval', methods=['POST'])
 def set_interval():
-    """Update narration interval"""
     data = request.get_json()
     interval = data.get('interval', 5)
-    assistant.narration_interval = max(3, min(15, interval))  # Clamp between 3-15 seconds
+    assistant.narration_interval = max(3, min(15, interval))
     print(f"[SETTING] Narration interval changed to {assistant.narration_interval}s")
     return jsonify({'success': True, 'interval': assistant.narration_interval})
 
 
 if __name__ == '__main__':
-    # Create static folder for audio files
     os.makedirs('static', exist_ok=True)
     
     print("\n" + "="*50)
@@ -270,7 +268,7 @@ if __name__ == '__main__':
     print("   http://localhost:5000")
     print("\n Features:")
     print("   ✓ YOLOv8 Object Detection")
-    print("   ✓ Text-to-Speech Narration")
+    print("   ✓ Text-to-Speech Narration (Smooth)")
     print("   ✓ Real-time Video Feed")
     print("="*50 + "\n")
     
