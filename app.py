@@ -10,6 +10,7 @@ import time
 from ultralytics import YOLO
 from yolo_detection.spatial_utils import get_position_description, sort_by_importance
 from yolo_detection.navigation_classes import NAVIGATION_CLASSES, PRIORITY_MAP
+from yolo_detection.scene_narrator import SceneNarrator
 from gtts import gTTS
 import tempfile
 import os
@@ -37,9 +38,14 @@ class WebNavigationAssistant:
         # Camera
         self.camera = cv2.VideoCapture(0)
         self.camera_lock = threading.Lock()
+
+        self.narrator = SceneNarrator()
         
         print("[Init] Ready!")
-    
+        
+    def generate_narration(self, detections):
+        """Generate intelligent scene narration"""
+        return self.narrator.generate_scene_description(detections)
 
     def process_frame(self, frame):
         """Process frame with YOLO"""
