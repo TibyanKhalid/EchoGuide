@@ -181,16 +181,18 @@ class WebNavigationAssistant:
                 new_narration = self.generate_narration(self.current_detections)
                 print(f"[NARRATION]: {new_narration}")
                 
-                self.current_narration = new_narration
-                
                 # Only generate audio if narration changed
-                if self.current_narration != self.last_spoken_narration:
-                    self.last_spoken_narration = self.current_narration
-                    threading.Thread(
-                        target=self.generate_audio, 
-                        args=(self.current_narration,),
-                        daemon=True
-                    ).start()
+                if new_narration != self.last_spoken_narration:
+                    self.last_spoken_narration = new_narration
+
+                    # Generate audio synchronously (not thread) to ensure sync
+                    audio_path = self.generate_audio(new_narration)
+
+                    # Now update displayed narration ONLY AFTER audio is ready
+                    if audio_path:
+                        self.current_narration = new_narration
+                        self.last_audio_path = audio_path
+
             
             self.current_frame = frame
             return frame
