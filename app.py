@@ -40,6 +40,7 @@ class WebNavigationAssistant:
         
         print("[Init] Ready!")
     
+
     def process_frame(self, frame):
         """Process frame with YOLO"""
         results = self.yolo_model(frame, conf=self.conf_threshold, verbose=False)[0]
@@ -57,12 +58,15 @@ class WebNavigationAssistant:
                 x1, y1, x2, y2 = bbox
                 bbox_area = (x2 - x1) * (y2 - y1)
                 
+                # Get position description
+                position_info = get_position_description(bbox, width, height)
+                
                 detections.append({
                     'class': class_name,
                     'confidence': confidence,
                     'bbox': bbox.tolist(),
                     'size': bbox_area,
-                    'position': get_position_description(bbox, width, height)
+                    'position': position_info  
                 })
         
         return detections
