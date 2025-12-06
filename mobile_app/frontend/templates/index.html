@@ -228,6 +228,7 @@
     <script>
         let narrationCount = 0;
         let lastNarration = '';
+        let lastAudioId = null;  // Track the last audio ID being played
         let isRunning = false;
         let updateInterval = null;
 
@@ -258,8 +259,17 @@
             fetch('/get_audio')
                 .then(response => response.json())
                 .then(data => {
-                    if (data.audio_url) {
+                    if (data.audio_url && data.audio_id !== lastAudioId) {
                         const audioPlayer = document.getElementById('audio-player');
+                        
+                        // Stop currently playing audio before starting new one
+                        audioPlayer.pause();
+                        audioPlayer.currentTime = 0;
+                        
+                        // Update the tracked audio ID
+                        lastAudioId = data.audio_id;
+                        
+                        // Load and play new audio
                         audioPlayer.src = data.audio_url + '?t=' + new Date().getTime(); // Cache bust
                         audioPlayer.play().catch(error => {
                             console.error('Audio play failed:', error);

@@ -33,6 +33,7 @@ class WebNavigationAssistant:
         # AUDIO STATE
         self.last_spoken_narration = None
         self.last_audio_path = None
+        self.current_audio_id = None  # Track currently playing audio
         
         # Camera
         self.camera = cv2.VideoCapture(1)
@@ -98,12 +99,21 @@ class WebNavigationAssistant:
         """Generate smooth audio with unique filenames"""
         try:
             timestamp = int(time.time() * 1000)
+            audio_id = timestamp
             audio_path = f"static/narration_{timestamp}.mp3"
+
+            # Mark old audio as outdated (stop it from playing)
+            self.current_audio_id = audio_id
 
             tts = gTTS(text=text, lang='en', slow=False)
             tts.save(audio_path)
 
-            self.last_audio_path = audio_path
+            # Only set as current if this is still the latest audio
+            if self.current_audio_id == audio_id:
+                self.last_audio_path = audio_path
+            else:
+                # A new audio was generated while we were creating this one
+                return None
 
             # Remove old audio files
             for f in os.listdir("static"):
@@ -205,8 +215,11 @@ def get_narration():
 @app.route('/get_audio')
 def get_audio():
     if assistant.last_audio_path and os.path.exists(assistant.last_audio_path):
-        return jsonify({'audio_url': '/' + assistant.last_audio_path})
-    return jsonify({'audio_url': None})
+        return jsonify({
+            'audio_url': '/' + assistant.last_audio_path,
+            'audio_id': assistant.current_audio_id
+        })
+    return jsonify({'audio_url': None, 'audio_id': None})
 
 
 @app.route('/set_interval', methods=['POST'])
