@@ -35,7 +35,7 @@ class WebNavigationAssistant:
         self.last_audio_path = None
         
         # Camera
-        self.camera = cv2.VideoCapture(0)
+        self.camera = cv2.VideoCapture(1)
         self.camera_lock = threading.Lock()
 
         # LLM Narrator
