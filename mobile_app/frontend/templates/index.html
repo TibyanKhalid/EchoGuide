@@ -272,6 +272,16 @@
                 .catch(error => console.error('Error playing audio:', error));
         }
 
+        // Play status message using text-to-speech
+        function playStatusMessage(message) {
+            const utterance = new SpeechSynthesisUtterance(message);
+            utterance.lang = 'en-US';
+            utterance.rate = 1.0;
+            utterance.pitch = 1.0;
+            utterance.volume = 1.0;
+            window.speechSynthesis.speak(utterance);
+        }
+
         // Toggle narration on/off
         function toggleNarration() {
             const btn = document.getElementById('start-stop-btn');
@@ -290,11 +300,17 @@
                 const audioPlayer = document.getElementById('audio-player');
                 audioPlayer.pause();
                 audioPlayer.currentTime = 0;
+                
+                // Play "Navigation stopped" message
+                playStatusMessage('Navigation stopped');
             } else {
                 // Start
                 isRunning = true;
                 btn.textContent = '⏹️ Stop';
                 document.getElementById('narration-text').textContent = 'Starting...';
+                
+                // Play "Navigation started" message
+                playStatusMessage('Navigation started');
                 
                 // Start updating immediately
                 updateNarration();
