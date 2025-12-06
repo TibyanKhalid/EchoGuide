@@ -1,81 +1,49 @@
-# yolo_detection/llm_narrator.py
+# llm_narrator.py
 
 import os
+from groq import Groq
 import requests
-import json
 
 class LLMNarrator:
-    def __init__(self, model_name="meta-llama/Llama-3.2-3B-Instruct"):
-        """
-        Initialize LLM narrator using HuggingFace Inference API
-        """
-        print(f"[LLM] Initializing API connection to {model_name}...")
+    def __init__(self):
+        print("[LLM] Initializing Groq API...")
         
-        # Get API token from environment
-        self.api_token = os.environ.get("HUGGINGFACE_TOKEN") or os.environ.get("HF_TOKEN")
+        api_key = os.environ.get("GROQ_API_KEY")
+        if not api_key:
+            raise ValueError("GROQ_API_KEY not found in environment!")
         
-        if not self.api_token:
-            raise ValueError(
-                "HuggingFace API token not found! "
-                "Set environment variable: HUGGINGFACE_TOKEN or HF_TOKEN"
-            )
-        
-        # API endpoint
-        self.api_url = f"https://api-inference.huggingface.co/models/{model_name}"
-        
-        # Headers
-        self.headers = {
-            "Authorization": f"Bearer {self.api_token}",
-            "Content-Type": "application/json"
-        }
-        
-        # Test connection
-        self._test_connection()
-        
-        print("[LLM] API connection successful!")
-    
-    def _test_connection(self):
-        """Test if the API is accessible"""
-        try:
-            test_payload = {
-                "inputs": "Hello",
-                "parameters": {"max_new_tokens": 10}
-            }
-            response = requests.post(
-                self.api_url,
-                headers=self.headers,
-                json=test_payload,
-                timeout=10
-            )
-            
-            if response.status_code == 503:
-                print("[LLM] Model is loading... This may take 20-30 seconds on first use.")
-                return
-            
-            if response.status_code != 200:
-                print(f"[LLM WARNING] API returned status {response.status_code}")
-                print(f"[LLM WARNING] Response: {response.text}")
-            
-        except Exception as e:
-            print(f"[LLM WARNING] Connection test failed: {e}")
+        self.client = Groq(api_key=api_key)
+        print("[LLM] Groq API ready!")
     
     def generate_navigation_instruction(self, detections):
-        """
-        Generate helpful navigation instruction from detections
-        """
         if not detections:
-            return "The path ahead is clear. You can continue walking forward."
+            return "Path is clear. Continue forward."
         
-        # Build detection summary
         detection_summary = self._build_detection_summary(detections)
         
-        # Create prompt
-        prompt = self._create_prompt(detection_summary)
-        
-        # Generate instruction
-        instruction = self._generate(prompt)
-        
-        return instruction
+        try:
+            response = self.client.chat.completions.create(
+                model="llama-3.1-8b-instant",  # Very fast
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a navigation assistant for blind people. Give ONE clear instruction under 20 words. Start with the action: Stop/Move left/Move right/Continue."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Objects detected:\n{detection_summary}\n\nNavigation instruction:"
+                    }
+                ],
+                max_tokens=50,
+                temperature=0.7
+            )
+            
+            instruction = response.choices[0].message.content.strip()
+            return self._clean_instruction(instruction)
+            
+        except Exception as e:
+            print(f"[LLM ERROR]: {e}")
+            return "Proceed with caution."
     
     def _build_detection_summary(self, detections):
         """Convert detections to text summary"""
