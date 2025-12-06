@@ -213,13 +213,6 @@
         <div class="controls">
             <button id="start-stop-btn" onclick="toggleNarration()">▶️ Start</button>
         </div>
-
-        <!-- Settings -->
-        <div class="settings">
-            <label for="interval-slider">Narration Interval:</label>
-            <input type="range" id="interval-slider" min="3" max="15" value="5" step="1">
-            <span id="interval-value">5s</span>
-        </div>
     </div>
 
     <!-- Audio element (hidden) -->
@@ -308,24 +301,6 @@
                 updateInterval = setInterval(updateNarration, 2000);
             }
         }
-
-        // Handle interval slider
-        const intervalSlider = document.getElementById('interval-slider');
-        const intervalValue = document.getElementById('interval-value');
-
-        intervalSlider.addEventListener('input', function() {
-            intervalValue.textContent = this.value + 's';
-        });
-
-        intervalSlider.addEventListener('change', function() {
-            fetch('/set_interval', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ interval: parseInt(this.value) })
-            });
-        });
 
         // Narration controlled by Start/Stop button
         // User must click Start to begin
