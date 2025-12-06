@@ -10,10 +10,10 @@ class LLMNarrator:
         
         api_key = os.environ.get("GROQ_API_KEY")
         if not api_key:
-            raise ValueError("GROQ_API_KEY not found in environment!")
+            raise ValueError("GROQ_API_KEY not found in environment")
         
         self.client = Groq(api_key=api_key)
-        print("[LLM] Groq API ready!")
+        print("[LLM] Groq API ready")
     
     def generate_navigation_instruction(self, detections):
         if not detections:
@@ -23,7 +23,7 @@ class LLMNarrator:
         
         try:
             response = self.client.chat.completions.create(
-                model="llama-3.1-8b-instant",  # Very fast
+                model="llama-3.1-8b-instant",  
                 messages=[
                     {
                         "role": "system",
@@ -74,21 +74,28 @@ class LLMNarrator:
         return "\n".join(summary_parts)
     
     def _create_prompt(self, detection_summary):
-        """Create instruction prompt"""
-        prompt = f"""You are a navigation assistant for blind people. Give ONE clear, actionable instruction based on these detected objects.
+        """Few-shot prompt with examples"""
+        prompt = f"""Navigation assistant for blind users. Give ONE instruction based on detected objects.
 
-Detected objects:
-{detection_summary}
+    Example 1:
+    Objects: chair: very close directly ahead (urgency: immediate)
+    Instruction: Stop! Chair blocking your path. Move right to avoid it.
 
-Rules:
-- Keep response under 20 words
-- Start with most urgent obstacle
-- Give specific directions: "move left", "move right", "stop", "continue forward"
-- Be direct and helpful
-- Format: [Action]. [Brief context if needed].
+    Example 2:
+    Objects: person: a few steps away on your left (urgency: aware), car: in the distance on your right (urgency: info)
+    Instruction: Person on your left. Path ahead is clear, continue forward.
 
-Instruction:"""
-        
+    Example 3:
+    Objects: table: nearby on your right (urgency: caution), potted plant: nearby on your left (urgency: caution)
+    Instruction: Obstacles on both sides. Walk slowly straight ahead.
+
+    Example 4:
+    Objects: person: very close directly ahead (urgency: immediate)
+    Instruction: Stop! Person directly in front of you. Wait for them to pass.
+
+    Now your turn:
+    Objects: {detection_summary}
+    Instruction:"""
         return prompt
     
     def _generate(self, prompt):
