@@ -1,3 +1,4 @@
+![Project Banner](echoguide-high-resolution-logo.png)
 # EchoGuide: AI-Powered Audio Guide for the Visually Impaired
 ## **Overview**
 This project enables real-time scene understanding and spoken navigation for visually impaired users using computer vision and AI. Currently still under developing.
