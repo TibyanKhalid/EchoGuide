@@ -1,6 +1,7 @@
 <div align="center">
-  <img src="echoguide-high-resolution-logo.png" width="200">
+  <img src="echoguide-high-resolution-logo.png" width="500">
 </div>
+
 # EchoGuide: AI-Powered Audio Guide for the Visually Impaired
 ## **Overview**
 This project enables real-time scene understanding and spoken navigation for visually impaired users using computer vision and AI. Currently still under developing.
