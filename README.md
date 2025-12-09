@@ -29,6 +29,7 @@ This project enables real-time scene understanding and spoken navigation for vis
 
 
 ## 🎥**Demo**
+Coming soon!
 
 
 
