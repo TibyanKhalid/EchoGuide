@@ -8,32 +8,32 @@ This project enables real-time scene understanding and spoken navigation for vis
 
 ## 🔧**Pipeline Architecture**
 
-📷 **Camera Feed**  
+**Camera Feed**  
 ↓   
-🧠 **YOLOv8 Object Detection**  
+**YOLOv8 Object Detection**  
 ↓   
-📌 **Detected Objects + Bounding Boxes**  
+**Detected Objects + Bounding Boxes**  
 ↓  
-🧭 **Spatial Analysis (position, distance, urgency)**  
+**Spatial Analysis (position, distance, urgency)**  
 ↓  
-💬 **LLM Narrator (Llama 3.1 – Groq API)**  
+**LLM Narrator (Llama 3.1 – Groq API)**  
 ↓  
-🗣️ **Navigation Instruction (text)**  
+**Navigation Instruction (text)**  
 ↓  
-🔊 **Text-to-Speech (gTTS)**  
+**Text-to-Speech (gTTS)**  
 ↓   
-🎧 **Audio Output**  
+**Audio Output**  
 ↓  
-🌐 **Flask Web App (User Interface)**
+**Flask Web App (User Interface)**
 
 
 
-## 🎥**Demo**
+## **Demo**
 Coming soon!
 
 
 
-## 🛠️**Tech Stack**
+## **Tech Stack**
 **Backend**
 - Python
 - Flask
@@ -53,7 +53,7 @@ Coming soon!
 - gTTS — text-to-speech output
 
 
-## 🔧**Installation**
+## **Installation**
 
 ```bash
 1) Clone the repo:
@@ -74,7 +74,7 @@ setx GROQ_API_KEY "your_token_here"
 python app.py
 ```
 
-## ⚠️**Limitations**
+## **Limitations**
 - Requires stable internet (LLM API)
 - Currently supports English Language only
 - Works best in well-lit environments
