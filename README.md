@@ -6,7 +6,7 @@
 ## **Overview**
 This project enables real-time scene understanding and spoken navigation for visually impaired users using computer vision and AI. **Currently still under development**.
 
-## 🔧**Pipeline Architecture**
+## **Pipeline Architecture**
 
 **Camera Feed**  
 ↓   
